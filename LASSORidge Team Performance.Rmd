@@ -1,0 +1,381 @@
+---
+title: "LASSO & Ridge Team Performance"
+author: "Shu Han Chang"
+date: "March 30, 2018"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(gbm)
+library(Hmisc)
+library(tidyverse)
+library(dplyr)
+library(lubridate)
+library(glmnet)
+library(ridge)
+library(MASS)
+```
+
+##Load Dataset
+```{r}
+NewTeamPlay <- read_csv("C:/Users/linds/OneDrive/Fall 2017/American Research/American Research/TeamPlayDataset.v.3.18.csv") %>% 
+  dplyr::select(-Date, -TeamZipcode, -OppositionZipcode, -VenueZipcode, -StadiumID, -TeamGameNumber,  -TeamZipcode, -Zipcode, -RestDays, -MatchID, -MatchIDcopy, -`Match-TeamID`, -Opposition, -Oppositionid, -Team, -TeamID, -CompId, -SeasId) %>%
+  na.omit()
+```
+
+##Dataset - creating into numerics 
+```{r}
+NewTeamPlay$`SubstituteOn` <- as.integer(NewTeamPlay$`SubstituteOn`)
+NewTeamPlay$`SubstituteOff` <- as.integer(NewTeamPlay$`SubstituteOff`)
+#NewTeamPlay$`Goals` <- as.integer(NewTeamPlay$`Goals`)
+NewTeamPlay$`ShotsOnTargetincgoals` <- as.integer(NewTeamPlay$`ShotsOnTargetincgoals`)
+NewTeamPlay$`ShotsOffTargetincwoodwork` <- as.integer(NewTeamPlay$`ShotsOffTargetincwoodwork`)
+NewTeamPlay$`BlockedShots` <- as.integer(NewTeamPlay$`BlockedShots`)
+NewTeamPlay$`PenaltiesTaken` <- as.integer(NewTeamPlay$`PenaltiesTaken`)
+NewTeamPlay$`PenaltyGoals` <- as.integer(NewTeamPlay$`PenaltyGoals`)
+NewTeamPlay$`PenaltiesSaved` <- as.integer(NewTeamPlay$`PenaltiesSaved`)
+NewTeamPlay$`PenaltiesOffTarget` <- as.integer(NewTeamPlay$`PenaltiesOffTarget`)
+NewTeamPlay$`PenaltiesNotScored` <- as.integer(NewTeamPlay$`PenaltiesNotScored`)
+NewTeamPlay$`DirectFree.kickGoals` <- as.integer(NewTeamPlay$`DirectFree.kickGoals`)
+NewTeamPlay$`DirectFree.kickOnTarget` <- as.integer(NewTeamPlay$`DirectFree.kickOnTarget`)
+NewTeamPlay$`DirectFree.kickOffTarget` <- as.integer(NewTeamPlay$`DirectFree.kickOffTarget`)
+NewTeamPlay$`BlockedDirectFree.kick` <- as.integer(NewTeamPlay$`BlockedDirectFree.kick`)
+NewTeamPlay$`GoalsfromInsideBox` <- as.integer(NewTeamPlay$`GoalsfromInsideBox`)
+NewTeamPlay$`ShotsOnfromInsideBox` <- as.integer(NewTeamPlay$`ShotsOnfromInsideBox`)
+NewTeamPlay$`ShotsOfffromInsideBox` <- as.integer(NewTeamPlay$`ShotsOfffromInsideBox`)
+NewTeamPlay$`BlockedShotsfromInsideBox` <- as.integer(NewTeamPlay$`BlockedShotsfromInsideBox`)
+NewTeamPlay$`GoalsfromOutsideBox` <- as.integer(NewTeamPlay$`GoalsfromOutsideBox`)
+NewTeamPlay$`ShotsOnTargetOutsideBox` <- as.integer(NewTeamPlay$`ShotsOnTargetOutsideBox`)
+NewTeamPlay$`ShotsOffTargetOutsideBox` <- as.integer(NewTeamPlay$`ShotsOffTargetOutsideBox`)
+NewTeamPlay$`BlockedShotsOutsideBox` <- as.integer(NewTeamPlay$`BlockedShotsOutsideBox`)
+NewTeamPlay$`HeadedGoals` <- as.integer(NewTeamPlay$`HeadedGoals`)
+NewTeamPlay$`HeadedShotsOnTarget` <- as.integer(NewTeamPlay$`HeadedShotsOnTarget`)
+NewTeamPlay$`HeadedShotsOffTarget` <- as.integer(NewTeamPlay$`HeadedShotsOffTarget`)
+NewTeamPlay$`HeadedBlockedShots` <- as.integer(NewTeamPlay$`HeadedBlockedShots`)
+NewTeamPlay$`LeftFootGoals` <- as.integer(NewTeamPlay$`LeftFootGoals`)
+NewTeamPlay$`LeftFootShotsOnTarget` <- as.integer(NewTeamPlay$`LeftFootShotsOnTarget`)
+NewTeamPlay$`LeftFootShotsOffTarget` <- as.integer(NewTeamPlay$`LeftFootShotsOffTarget`)
+NewTeamPlay$`LeftFootBlockedShots` <- as.integer(NewTeamPlay$`LeftFootBlockedShots`)
+NewTeamPlay$`RightFootGoals` <- as.integer(NewTeamPlay$`RightFootGoals`)
+NewTeamPlay$`RightFootShotsOnTarget` <- as.integer(NewTeamPlay$`RightFootShotsOnTarget`)
+NewTeamPlay$`RightFootShotsOffTarget` <- as.integer(NewTeamPlay$`RightFootShotsOffTarget`)
+NewTeamPlay$`RightFootBlockedShots` <- as.integer(NewTeamPlay$`RightFootBlockedShots`)
+NewTeamPlay$`OtherGoals` <- as.integer(NewTeamPlay$`OtherGoals`)
+NewTeamPlay$`OtherShotsOnTarget` <- as.integer(NewTeamPlay$`OtherShotsOnTarget`)
+NewTeamPlay$`OtherShotsOffTarget` <- as.integer(NewTeamPlay$`OtherShotsOffTarget`)
+NewTeamPlay$`OtherBlockedShots` <- as.integer(NewTeamPlay$`OtherBlockedShots`)
+NewTeamPlay$`ShotsClearedoffLine` <- as.integer(NewTeamPlay$`ShotsClearedoffLine`)
+NewTeamPlay$`ShotsClearedoffLineInsideArea` <- as.integer(NewTeamPlay$`ShotsClearedoffLineInsideArea`)
+NewTeamPlay$`ShotsClearedoffLineOutsideArea` <- as.integer(NewTeamPlay$`ShotsClearedoffLineOutsideArea`)
+NewTeamPlay$`GoalsOpenPlay` <- as.integer(NewTeamPlay$`GoalsOpenPlay`)
+NewTeamPlay$`GoalsfromCorners` <- as.integer(NewTeamPlay$`GoalsfromCorners`)
+NewTeamPlay$`GoalsfromThrows` <- as.integer(NewTeamPlay$`GoalsfromThrows`)
+NewTeamPlay$`GoalsfromDirectFreeKick` <- as.integer(NewTeamPlay$`GoalsfromDirectFreeKick`)
+NewTeamPlay$`GoalsfromSetPlay` <- as.integer(NewTeamPlay$`GoalsfromSetPlay`)
+NewTeamPlay$`Goalsfrompenalties` <- as.integer(NewTeamPlay$`Goalsfrompenalties`)
+NewTeamPlay$`AttemptsOpenPlayontarget` <- as.integer(NewTeamPlay$`AttemptsOpenPlayontarget`)
+NewTeamPlay$`AttemptsfromCornersontarget` <- as.integer(NewTeamPlay$`AttemptsfromCornersontarget`)
+NewTeamPlay$`AttemptsfromThrowsontarget` <- as.integer(NewTeamPlay$`AttemptsfromThrowsontarget`)
+NewTeamPlay$`AttemptsfromDirectFreeKickontarget` <- as.integer(NewTeamPlay$`AttemptsfromDirectFreeKickontarget`)
+NewTeamPlay$`AttemptsfromSetPlayontarget` <- as.integer(NewTeamPlay$`AttemptsfromSetPlayontarget`)
+NewTeamPlay$`AttemptsfromPenaltiesontarget` <- as.integer(NewTeamPlay$`AttemptsfromPenaltiesontarget`)
+NewTeamPlay$`AttemptsOpenPlayofftarget` <- as.integer(NewTeamPlay$`AttemptsOpenPlayofftarget`)
+NewTeamPlay$`AttemptsfromCornersofftarget` <- as.integer(NewTeamPlay$`AttemptsfromCornersofftarget`)
+NewTeamPlay$`AttemptsfromThrowsofftarget` <- as.integer(NewTeamPlay$`AttemptsfromThrowsofftarget`)
+NewTeamPlay$`AttemptsfromDirectFreeKickofftarget` <- as.integer(NewTeamPlay$`AttemptsfromDirectFreeKickofftarget`)
+NewTeamPlay$`AttemptsfromSetPlayofftarget` <- as.integer(NewTeamPlay$`AttemptsfromSetPlayofftarget`)
+NewTeamPlay$`AttemptsfromPenaltiesofftarget` <- as.integer(NewTeamPlay$`AttemptsfromPenaltiesofftarget`)
+NewTeamPlay$`Goalsasasubstitute` <- as.integer(NewTeamPlay$`Goalsasasubstitute`)
+NewTeamPlay$`TotalSuccessfulPassesAll` <- as.integer(NewTeamPlay$`TotalSuccessfulPassesAll`)
+NewTeamPlay$`TotalUnsuccessfulPassesAll` <- as.integer(NewTeamPlay$`TotalUnsuccessfulPassesAll`)
+NewTeamPlay$`Assists` <- as.integer(NewTeamPlay$`Assists`)
+NewTeamPlay$`KeyPasses` <- as.integer(NewTeamPlay$`KeyPasses`)
+NewTeamPlay$`TotalSuccessfulPassesExclCrossesCorners` <- as.integer(NewTeamPlay$`TotalSuccessfulPassesExclCrossesCorners`)
+NewTeamPlay$`TotalUnsuccessfulPassesExclCrossesCorners` <- as.integer(NewTeamPlay$`TotalUnsuccessfulPassesExclCrossesCorners`)
+NewTeamPlay$`SuccessfulPassesOwnHalf` <- as.integer(NewTeamPlay$`SuccessfulPassesOwnHalf`)
+NewTeamPlay$`UnsuccessfulPassesOwnHalf` <- as.integer(NewTeamPlay$`UnsuccessfulPassesOwnHalf`)
+NewTeamPlay$`SuccessfulPassesOppositionHalf` <- as.integer(NewTeamPlay$`SuccessfulPassesOppositionHalf`)
+NewTeamPlay$`UnsuccessfulPassesOppositionHalf` <- as.integer(NewTeamPlay$`UnsuccessfulPassesOppositionHalf`)
+NewTeamPlay$`SuccessfulPassesDefensivethird` <- as.integer(NewTeamPlay$`SuccessfulPassesDefensivethird`)
+NewTeamPlay$`UnsuccessfulPassesDefensivethird` <- as.integer(NewTeamPlay$`UnsuccessfulPassesDefensivethird`)
+NewTeamPlay$`SuccessfulPassesMiddlethird` <- as.integer(NewTeamPlay$`SuccessfulPassesMiddlethird`)
+NewTeamPlay$`UnsuccessfulPassesMiddlethird` <- as.integer(NewTeamPlay$`UnsuccessfulPassesMiddlethird`)
+NewTeamPlay$`SuccessfulPassesFinalthird` <- as.integer(NewTeamPlay$`SuccessfulPassesFinalthird`)
+NewTeamPlay$`UnsuccessfulPassesFinalthird` <- as.integer(NewTeamPlay$`UnsuccessfulPassesFinalthird`)
+NewTeamPlay$`SuccessfulShortPasses` <- as.integer(NewTeamPlay$`SuccessfulShortPasses`)
+NewTeamPlay$`UnsuccessfulShortPasses` <- as.integer(NewTeamPlay$`UnsuccessfulShortPasses`)
+NewTeamPlay$`SuccessfulLongPasses` <- as.integer(NewTeamPlay$`SuccessfulLongPasses`)
+NewTeamPlay$`UnsuccessfulLongPasses` <- as.integer(NewTeamPlay$`UnsuccessfulLongPasses`)
+NewTeamPlay$`SuccessfulFlick.Ons` <- as.integer(NewTeamPlay$`SuccessfulFlick.Ons`)
+NewTeamPlay$`UnsuccessfulFlick.Ons` <- as.integer(NewTeamPlay$`UnsuccessfulFlick.Ons`)
+NewTeamPlay$`SuccessfulCrossesCorners` <- as.integer(NewTeamPlay$`SuccessfulCrossesCorners`)
+NewTeamPlay$`UnsuccessfulCrossesCorners` <- as.integer(NewTeamPlay$`UnsuccessfulCrossesCorners`)
+NewTeamPlay$`CornersTakeninclshortcorners` <- as.integer(NewTeamPlay$`CornersTakeninclshortcorners`)
+NewTeamPlay$`CornersConceded` <- as.integer(NewTeamPlay$`CornersConceded`)
+NewTeamPlay$`SuccessfulCornersintoBox` <- as.integer(NewTeamPlay$`SuccessfulCornersintoBox`)
+NewTeamPlay$`UnsuccessfulCornersintoBox` <- as.integer(NewTeamPlay$`UnsuccessfulCornersintoBox`)
+NewTeamPlay$`ShortCorners` <- as.integer(NewTeamPlay$`ShortCorners`)
+NewTeamPlay$`ThrowInstoOwnPlayer` <- as.integer(NewTeamPlay$`ThrowInstoOwnPlayer`)
+NewTeamPlay$`ThrowInstoOppositionPlayer` <- as.integer(NewTeamPlay$`ThrowInstoOppositionPlayer`)
+NewTeamPlay$`SuccessfulDribbles` <- as.integer(NewTeamPlay$`SuccessfulDribbles`)
+NewTeamPlay$`UnsuccessfulDribbles` <- as.integer(NewTeamPlay$`UnsuccessfulDribbles`)
+NewTeamPlay$`SuccessfulCrossesCornersLeft` <- as.integer(NewTeamPlay$`SuccessfulCrossesCornersLeft`)
+NewTeamPlay$`UnsuccessfulCrossesCornersLeft` <- as.integer(NewTeamPlay$`UnsuccessfulCrossesCornersLeft`)
+NewTeamPlay$`SuccessfulCrossesLeft` <- as.integer(NewTeamPlay$`SuccessfulCrossesLeft`)
+NewTeamPlay$`UnsuccessfulCrossesLeft` <- as.integer(NewTeamPlay$`UnsuccessfulCrossesLeft`)
+NewTeamPlay$`SuccessfulCornersLeft` <- as.integer(NewTeamPlay$`SuccessfulCornersLeft`)
+NewTeamPlay$`UnsuccessfulCornersLeft` <- as.integer(NewTeamPlay$`UnsuccessfulCornersLeft`)
+NewTeamPlay$`SuccessfulCrossesCornersRight` <- as.integer(NewTeamPlay$`SuccessfulCrossesCornersRight`)
+NewTeamPlay$`UnsuccessfulCrossesCornersRight` <- as.integer(NewTeamPlay$`UnsuccessfulCrossesCornersRight`)
+NewTeamPlay$`SuccessfulCrossesRight` <- as.integer(NewTeamPlay$`SuccessfulCrossesRight`)
+NewTeamPlay$`UnsuccessfulCrossesRight` <- as.integer(NewTeamPlay$`UnsuccessfulCrossesRight`)
+NewTeamPlay$`SuccessfulCornersRight` <- as.integer(NewTeamPlay$`SuccessfulCornersRight`)
+NewTeamPlay$`UnsuccessfulCornersRight` <- as.integer(NewTeamPlay$`UnsuccessfulCornersRight`)
+NewTeamPlay$`SuccessfulLongBalls` <- as.integer(NewTeamPlay$`SuccessfulLongBalls`)
+NewTeamPlay$`UnsuccessfulLongBalls` <- as.integer(NewTeamPlay$`UnsuccessfulLongBalls`)
+NewTeamPlay$`SuccessfulLay.Offs` <- as.integer(NewTeamPlay$`SuccessfulLay.Offs`)
+NewTeamPlay$`UnsuccessfulLay.Offs` <- as.integer(NewTeamPlay$`UnsuccessfulLay.Offs`)
+NewTeamPlay$`ThroughBall` <- as.integer(NewTeamPlay$`ThroughBall`)
+NewTeamPlay$`SuccessfulCrossesCornersintheair` <- as.integer(NewTeamPlay$`SuccessfulCrossesCornersintheair`)
+NewTeamPlay$`UnsuccessfulCrossesCornersintheair` <- as.integer(NewTeamPlay$`UnsuccessfulCrossesCornersintheair`)
+NewTeamPlay$`Successfulcrossesintheair` <- as.integer(NewTeamPlay$`Successfulcrossesintheair`)
+NewTeamPlay$`Unsuccessfulcrossesintheair` <- as.integer(NewTeamPlay$`Unsuccessfulcrossesintheair`)
+NewTeamPlay$`Successfulopenplaycrosses` <- as.integer(NewTeamPlay$`Successfulopenplaycrosses`)
+NewTeamPlay$`Unsuccessfulopenplaycrosses` <- as.integer(NewTeamPlay$`Unsuccessfulopenplaycrosses`)
+NewTeamPlay$`Touches` <- as.integer(NewTeamPlay$`Touches`)
+NewTeamPlay$`GoalAssistCorner` <- as.integer(NewTeamPlay$`GoalAssistCorner`)
+NewTeamPlay$`GoalAssistFreeKick` <- as.integer(NewTeamPlay$`GoalAssistFreeKick`)
+NewTeamPlay$`GoalAssistThrowIn` <- as.integer(NewTeamPlay$`GoalAssistThrowIn`)
+NewTeamPlay$`GoalAssistGoalKick` <- as.integer(NewTeamPlay$`GoalAssistGoalKick`)
+NewTeamPlay$`GoalAssistSetPiece` <- as.integer(NewTeamPlay$`GoalAssistSetPiece`)
+NewTeamPlay$`KeyCorner` <- as.integer(NewTeamPlay$`KeyCorner`)
+NewTeamPlay$`KeyFreeKick` <- as.integer(NewTeamPlay$`KeyFreeKick`)
+NewTeamPlay$`KeyThrowIn` <- as.integer(NewTeamPlay$`KeyThrowIn`)
+NewTeamPlay$`KeyGoalKick` <- as.integer(NewTeamPlay$`KeyGoalKick`)
+NewTeamPlay$`KeySetPieces` <- as.integer(NewTeamPlay$`KeySetPieces`)
+NewTeamPlay$`Duelswon` <- as.integer(NewTeamPlay$`Duelswon`)
+NewTeamPlay$`Duelslost` <- as.integer(NewTeamPlay$`Duelslost`)
+NewTeamPlay$`AerialDuelswon` <- as.integer(NewTeamPlay$`AerialDuelswon`)
+NewTeamPlay$`AerialDuelslost` <- as.integer(NewTeamPlay$`AerialDuelslost`)
+NewTeamPlay$`GroundDuelswon` <- as.integer(NewTeamPlay$`GroundDuelswon`)
+NewTeamPlay$`GroundDuelslost` <- as.integer(NewTeamPlay$`GroundDuelslost`)
+NewTeamPlay$`TacklesWon` <- as.integer(NewTeamPlay$`TacklesWon`)
+NewTeamPlay$`TacklesLost` <- as.integer(NewTeamPlay$`TacklesLost`)
+NewTeamPlay$`LastManTackle` <- as.integer(NewTeamPlay$`LastManTackle`)
+NewTeamPlay$`TotalClearances` <- as.integer(NewTeamPlay$`TotalClearances`)
+NewTeamPlay$`HeadedClearances` <- as.integer(NewTeamPlay$`HeadedClearances`)
+NewTeamPlay$`OtherClearances` <- as.integer(NewTeamPlay$`OtherClearances`)
+NewTeamPlay$`ClearancesOfftheLine` <- as.integer(NewTeamPlay$`ClearancesOfftheLine`)
+NewTeamPlay$`Blocks` <- as.integer(NewTeamPlay$`Blocks`)
+NewTeamPlay$`Interceptions` <- as.integer(NewTeamPlay$`Interceptions`)
+NewTeamPlay$`Recoveries` <- as.integer(NewTeamPlay$`Recoveries`)
+NewTeamPlay$`TotalFoulsConceded` <- as.integer(NewTeamPlay$`TotalFoulsConceded`)
+NewTeamPlay$`FoulsConcededexchandballspens` <- as.integer(NewTeamPlay$`FoulsConcededexchandballspens`)
+NewTeamPlay$`TotalFoulsWon` <- as.integer(NewTeamPlay$`TotalFoulsWon`)
+NewTeamPlay$`FoulsWoninDangerAreaincpens` <- as.integer(NewTeamPlay$`FoulsWoninDangerAreaincpens`)
+NewTeamPlay$`FoulsWonnotindangerarea` <- as.integer(NewTeamPlay$`FoulsWonnotindangerarea`)
+NewTeamPlay$`FoulWonPenalty` <- as.integer(NewTeamPlay$`FoulWonPenalty`)
+NewTeamPlay$`HandballsConceded` <- as.integer(NewTeamPlay$`HandballsConceded`)
+NewTeamPlay$`PenaltiesConceded` <- as.integer(NewTeamPlay$`PenaltiesConceded`)
+NewTeamPlay$`Offsides` <- as.integer(NewTeamPlay$`Offsides`)
+NewTeamPlay$`YellowCards` <- as.integer(NewTeamPlay$`YellowCards`)
+NewTeamPlay$`RedCards` <- as.integer(NewTeamPlay$`RedCards`)
+NewTeamPlay$`GoalsConceded` <- as.integer(NewTeamPlay$`GoalsConceded`)
+NewTeamPlay$`GoalsConcededInsideBox` <- as.integer(NewTeamPlay$`GoalsConcededInsideBox`)
+NewTeamPlay$`GoalsConcededOutsideBox` <- as.integer(NewTeamPlay$`GoalsConcededOutsideBox`)
+NewTeamPlay$`SavesMade` <- as.integer(NewTeamPlay$`SavesMade`)
+NewTeamPlay$`SavesMadefromInsideBox` <- as.integer(NewTeamPlay$`SavesMadefromInsideBox`)
+NewTeamPlay$`SavesMadefromOutsideBox` <- as.integer(NewTeamPlay$`SavesMadefromOutsideBox`)
+NewTeamPlay$`SavesfromPenalty` <- as.integer(NewTeamPlay$`SavesfromPenalty`)
+NewTeamPlay$`Catches` <- as.integer(NewTeamPlay$`Catches`)
+NewTeamPlay$`Punches` <- as.integer(NewTeamPlay$`Punches`)
+NewTeamPlay$`Drops` <- as.integer(NewTeamPlay$`Drops`)
+NewTeamPlay$`CrossesnotClaimed` <- as.integer(NewTeamPlay$`CrossesnotClaimed`)
+NewTeamPlay$`GKDistribution` <- as.integer(NewTeamPlay$`GKDistribution`)
+NewTeamPlay$`GKSuccessfulDistribution` <- as.integer(NewTeamPlay$`GKSuccessfulDistribution`)
+NewTeamPlay$`GKUnsuccessfulDistribution` <- as.integer(NewTeamPlay$`GKUnsuccessfulDistribution`)
+NewTeamPlay$`CleanSheets` <- as.integer(NewTeamPlay$`CleanSheets`)
+NewTeamPlay$`TeamCleansheet` <- as.integer(NewTeamPlay$`TeamCleansheet`)
+NewTeamPlay$`ErrorleadingtoGoal` <- as.integer(NewTeamPlay$`ErrorleadingtoGoal`)
+NewTeamPlay$`ErrorleadingtoAttempt` <- as.integer(NewTeamPlay$`ErrorleadingtoAttempt`)
+NewTeamPlay$`ChallengeLost` <- as.integer(NewTeamPlay$`ChallengeLost`)
+NewTeamPlay$`ShotsOnConceded` <- as.integer(NewTeamPlay$`ShotsOnConceded`)
+NewTeamPlay$`ShotsOnConcededInsideBox` <- as.integer(NewTeamPlay$`ShotsOnConcededInsideBox`)
+NewTeamPlay$`ShotsOnConcededOutsideBox` <- as.integer(NewTeamPlay$`ShotsOnConcededOutsideBox`)
+NewTeamPlay$`Turnovers` <- as.integer(NewTeamPlay$`Turnovers`)
+NewTeamPlay$`Dispossessed` <- as.integer(NewTeamPlay$`Dispossessed`)
+NewTeamPlay$`BigChances` <- as.integer(NewTeamPlay$`BigChances`)
+NewTeamPlay$`BigChancesFaced` <- as.integer(NewTeamPlay$`BigChancesFaced`)
+NewTeamPlay$`PassForward` <- as.integer(NewTeamPlay$`PassForward`)
+NewTeamPlay$`PassBackward` <- as.integer(NewTeamPlay$`PassBackward`)
+NewTeamPlay$`PassLeft` <- as.integer(NewTeamPlay$`PassLeft`)
+NewTeamPlay$`PassRight` <- as.integer(NewTeamPlay$`PassRight`)
+NewTeamPlay$`UnsuccessfulBallTouch` <- as.integer(NewTeamPlay$`UnsuccessfulBallTouch`)
+NewTeamPlay$`SuccessfulBallTouch` <- as.integer(NewTeamPlay$`SuccessfulBallTouch`)
+NewTeamPlay$`Take.OnsOverrun` <- as.integer(NewTeamPlay$`Take.OnsOverrun`)
+NewTeamPlay$`Touchesopenplayfinalthird` <- as.integer(NewTeamPlay$`Touchesopenplayfinalthird`)
+NewTeamPlay$`Touchesopenplayoppbox` <- as.integer(NewTeamPlay$`Touchesopenplayoppbox`)
+NewTeamPlay$`Touchesopenplayoppsixyards` <- as.integer(NewTeamPlay$`Touchesopenplayoppsixyards`)
+NewTeamPlay$`DeflectedGoals` <- as.integer(NewTeamPlay$`DeflectedGoals`)
+NewTeamPlay$`DeflectedShots` <- as.integer(NewTeamPlay$`DeflectedShots`)
+NewTeamPlay$`GoalfrompassfromFK` <- as.integer(NewTeamPlay$`GoalfrompassfromFK`)
+NewTeamPlay$`GoalsfromdivingHeaders` <- as.integer(NewTeamPlay$`GoalsfromdivingHeaders`)
+NewTeamPlay$`Goals.Volleys` <- as.integer(NewTeamPlay$`Goals.Volleys`)
+NewTeamPlay$`FastBreakGoals` <- as.integer(NewTeamPlay$`FastBreakGoals`)
+NewTeamPlay$`FastBreakAttempts` <- as.integer(NewTeamPlay$`FastBreakAttempts`)
+NewTeamPlay$`BigChanceCreated` <- as.integer(NewTeamPlay$`BigChanceCreated`)
+NewTeamPlay$`BigChancesScored` <- as.integer(NewTeamPlay$`BigChancesScored`)
+NewTeamPlay$`BigChancesOnTarget` <- as.integer(NewTeamPlay$`BigChancesOnTarget`)
+NewTeamPlay$`BigChancesOffTarget` <- as.integer(NewTeamPlay$`BigChancesOffTarget`)
+NewTeamPlay$`BigChancesBlocked` <- as.integer(NewTeamPlay$`BigChancesBlocked`)
+NewTeamPlay$`BigChancesFluffed` <- as.integer(NewTeamPlay$`BigChancesFluffed`)
+NewTeamPlay$`IntentionalAssist` <- as.integer(NewTeamPlay$`IntentionalAssist`)
+NewTeamPlay$`IntentionalChancesCreated` <- as.integer(NewTeamPlay$`IntentionalChancesCreated`)
+NewTeamPlay$`SecondAssists` <- as.integer(NewTeamPlay$`SecondAssists`)
+NewTeamPlay$`AttackingGroundDuelsWon` <- as.integer(NewTeamPlay$`AttackingGroundDuelsWon`)
+NewTeamPlay$`AttackingGroundDuelsLost` <- as.integer(NewTeamPlay$`AttackingGroundDuelsLost`)
+NewTeamPlay$`DefensiveGroundDuelsWon` <- as.integer(NewTeamPlay$`DefensiveGroundDuelsWon`)
+NewTeamPlay$`DefensiveGroundDuelsLost` <- as.integer(NewTeamPlay$`DefensiveGroundDuelsLost`)
+NewTeamPlay$`AttackingAerialDuelsWon` <- as.integer(NewTeamPlay$`AttackingAerialDuelsWon`)
+NewTeamPlay$`AttackingAerialDuelsLost` <- as.integer(NewTeamPlay$`AttackingAerialDuelsLost`)
+NewTeamPlay$`DefensiveAerialDuelsWon` <- as.integer(NewTeamPlay$`DefensiveAerialDuelsWon`)
+NewTeamPlay$`DefensiveAerialDuelsLost` <- as.integer(NewTeamPlay$`DefensiveAerialDuelsLost`)
+NewTeamPlay$`CrossesBlocked` <- as.integer(NewTeamPlay$`CrossesBlocked`)
+NewTeamPlay$`StraightRedcard` <- as.integer(NewTeamPlay$`StraightRedcard`)
+NewTeamPlay$`RedCard.2Yellows.` <- as.integer(NewTeamPlay$`RedCard.2Yellows.`)
+NewTeamPlay$`TimesTackled` <- as.integer(NewTeamPlay$`TimesTackled`)
+NewTeamPlay$`GoalkeeperSmother` <- as.integer(NewTeamPlay$`GoalkeeperSmother`)
+NewTeamPlay$`SavesDiving` <- as.integer(NewTeamPlay$`SavesDiving`)
+NewTeamPlay$`SavesFingertip` <- as.integer(NewTeamPlay$`SavesFingertip`)
+NewTeamPlay$`SavesParriedSafe` <- as.integer(NewTeamPlay$`SavesParriedSafe`)
+NewTeamPlay$`SavesParriedDanger` <- as.integer(NewTeamPlay$`SavesParriedDanger`)
+NewTeamPlay$`SavesStanding` <- as.integer(NewTeamPlay$`SavesStanding`)
+NewTeamPlay$`SavesReaching` <- as.integer(NewTeamPlay$`SavesReaching`)
+NewTeamPlay$`SavesStooping` <- as.integer(NewTeamPlay$`SavesStooping`)
+NewTeamPlay$`SavesHands` <- as.integer(NewTeamPlay$`SavesHands`)
+NewTeamPlay$`SavesFeet` <- as.integer(NewTeamPlay$`SavesFeet`)
+NewTeamPlay$`SavesBody` <- as.integer(NewTeamPlay$`SavesBody`)
+NewTeamPlay$`GK.Pickup` <- as.integer(NewTeamPlay$`GK.Pickup`)
+NewTeamPlay$`SavesCaught` <- as.integer(NewTeamPlay$`SavesCaught`)
+NewTeamPlay$`SavesCollected` <- as.integer(NewTeamPlay$`SavesCollected`)
+NewTeamPlay$`KeeperSweeperSuccessful` <- as.integer(NewTeamPlay$`KeeperSweeperSuccessful`)
+NewTeamPlay$`KeeperSweeperUnsuccessful` <- as.integer(NewTeamPlay$`KeeperSweeperUnsuccessful`)
+NewTeamPlay$`TotalShotsConceded` <- as.integer(NewTeamPlay$`TotalShotsConceded`)
+NewTeamPlay$`TotalBlockedShotsConceded` <- as.integer(NewTeamPlay$`TotalBlockedShotsConceded`)
+NewTeamPlay$`PercentageOfsuccessfulpassesforwards` <- as.integer(NewTeamPlay$`PercentageOfsuccessfulpassesforwards`)
+NewTeamPlay$`PercentageOfsuccessfulpassesbackwards` <- as.integer(NewTeamPlay$`PercentageOfsuccessfulpassesbackwards`)
+NewTeamPlay$`PercentageOfsuccessfulpassesleft` <- as.integer(NewTeamPlay$`PercentageOfsuccessfulpassesleft`)
+NewTeamPlay$`PercentageOfsuccessfulpassesright` <- as.integer(NewTeamPlay$`PercentageOfsuccessfulpassesright`)
+NewTeamPlay$`MilesFromHome` <- as.integer(NewTeamPlay$`MilesFromHome`)
+NewTeamPlay$`MilesTraveledToDate` <- as.integer(NewTeamPlay$`MilesTraveledToDate`)
+NewTeamPlay$`DaysSinceLastMatch` <- as.integer(NewTeamPlay$`DaysSinceLastMatch`)
+NewTeamPlay$`PointsToDate` <- as.integer(NewTeamPlay$`PointsToDate`)
+NewTeamPlay$`TempAtStart` <- as.integer(NewTeamPlay$`TempAtStart`)
+NewTeamPlay$`DewPoint` <- as.integer(NewTeamPlay$`DewPoint`)
+NewTeamPlay$`Humidity` <- as.integer(NewTeamPlay$`Humidity`)
+NewTeamPlay$`Pressure` <- as.integer(NewTeamPlay$`Pressure`)
+NewTeamPlay$`Visibility` <- as.integer(NewTeamPlay$`Visibility`)
+NewTeamPlay$`WindSpeed` <- as.integer(NewTeamPlay$`WindSpeed`)
+NewTeamPlay$`GustSpeed` <- as.integer(NewTeamPlay$`GustSpeed`)
+NewTeamPlay$`Precip` <- as.integer(NewTeamPlay$`Precip`)
+NewTeamPlay$`TempPrevDay` <- as.integer(NewTeamPlay$`TempPrevDay`)
+NewTeamPlay$`PrecipPrevDay.T` <- as.integer(NewTeamPlay$`PrecipPrevDay.T`)
+NewTeamPlay$`FieldLength` <- as.integer(NewTeamPlay$`FieldLength`)
+NewTeamPlay$`FieldWidth` <- as.integer(NewTeamPlay$`FieldWidth`)
+NewTeamPlay$`Cost` <- as.integer(NewTeamPlay$`Cost`)
+NewTeamPlay$`Capacity` <- as.integer(NewTeamPlay$`Capacity`)
+NewTeamPlay$`YearBuilt` <- as.integer(NewTeamPlay$`YearBuilt`)
+NewTeamPlay$`Age` <- as.integer(NewTeamPlay$`Age`)
+NewTeamPlay$`Altitude` <- as.integer(NewTeamPlay$`Altitude`)
+
+TeamPlay <- data.frame(NewTeamPlay)
+```
+
+## Setting the x and y for analysis
+```{r}
+x = model.matrix(Goals~., data = NewTeamPlay)
+y = NewTeamPlay$Goals
+```
+
+## Ridge
+```{r}
+ridge.mod = glmnet(x,y, alpha = 0)
+plot(ridge.mod)
+
+# compute the 12 norm for lambda = 40
+l2.norm.40=sqrt(sum(coef(ridge.mod)[-1,40]^2)) 
+l2.norm.40
+
+# find the best lambda
+set.seed(1) # To get repeatable results
+cv.10Fold = cv.glmnet(x,y,alpha=0)
+
+cbind("Lambda"=cv.10Fold$lambda, "10-Fold MSE"=cv.10Fold$cvm)
+
+plot(cv.10Fold) # Plot all lambdas vs. MSEs
+
+# Find the best lambda that minimizes 10FCV MSE
+best.lambda=cv.10Fold$lambda.min 
+best.lambda # Check it out
+log(best.lambda) # Spot it in the plot
+
+# Find the smallest cross validation MSE's
+min.mse=min(cv.10Fold$cvm)
+cbind("Best Lambda"=best.lambda, "Log(Lambda)"=log(best.lambda), "Best 10FCV MSE" = min.mse)
+```
+
+```{r}
+# Prediction
+predict(ridge.mod,s=best.lambda,type="coefficients")
+
+set.seed(1)
+test=sample(1:nrow(x), 0.10*nrow(x)) 
+ridge.pred=predict(ridge.mod,s=best.lambda,newx=x[test,])
+ridge.pred
+```
+
+## LASSO
+```{r}
+lasso.mod = glmnet(x,y, alpha = 1)
+```
+
+```{r}
+plot(lasso.mod)
+
+# compute the 12 norm for lambda = 40
+l2.norm.40.lasso= sqrt(sum(coef(lasso.mod)[-1,40]^2)) 
+l2.norm.40.lasso
+
+# find the best lambda
+set.seed(1) # To get repeatable results
+cv.10Fold.lasso = cv.glmnet(x,y,alpha=1)
+
+cbind("Lambda"=cv.10Fold.lasso$lambda, "10-Fold MSE"=cv.10Fold.lasso$cvm)
+
+plot(cv.10Fold.lasso) # Plot all lambdas vs. MSEs
+
+# Find the best lambda that minimizes 10FCV MSE
+best.lambda.lasso=cv.10Fold.lasso$lambda.min 
+best.lambda.lasso # Check it out
+log(best.lambda.lasso) # Spot it in the plot
+
+# Find the smallest cross validation MSE's
+min.mse.lasso=min(cv.10Fold.lasso$cvm)
+cbind("Best Lambda"=best.lambda.lasso, "Log(Lambda)"=log(best.lambda.lasso), "Best 10FCV MSE" = min.mse.lasso)
+```
+
+```{r}
+# Prediction
+predict(lasso.mod,s=best.lambda.lasso,type="coefficients")
+
+set.seed(1)
+test.lasso=sample(1:nrow(x), 0.10*nrow(x)) 
+lasso.pred=predict(lasso.mod,s=best.lambda.lasso,newx=x[test,])
+lasso.pred
+```
