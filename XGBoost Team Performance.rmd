@@ -1,0 +1,353 @@
+---
+title: "XGBoost Team Performance"
+author: "Shu Han Chang"
+date: "March 30, 2018"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(knitr)
+library(xgboost)
+library(lubridate)
+```
+
+```{r}
+NewTeamPlay2.9 <- read_csv("C:/Users/linds/OneDrive/Fall 2017/American Research/American Research/TeamPlayDataset.v.2.9.1.csv")
+```
+
+```{r}
+#Goals as response variable
+#Get rid of ID variables, variables related to Goals & reformat date
+
+TeamPlay <- NewTeamPlay2.9 %>% 
+  dplyr::select(-MatchID, -TeamID, -Oppositionid, -FirstGoal, -WinningGoal, -GoalsOpenPlay, -GoalsfromCorners, -GoalsfromThrows, -GoalsfromDirectFreeKick, -GoalsfromdivingHeaders, -GoalsConceded, -Goalsasasubstitute, -GoalsConcededInsideBox, -GoalsConcededOutsideBox, -MatchID, -Oppositionid, -Opposition, -GoalAssistSetPiece, -GoalsfromdivingHeaders, -Goals.Volleys, -CleanSheets, -BigChancesScored, -TeamCleansheet, -Goalsfrompenalties, -Team, -DirectFree.kickGoals, -TeamZipcode, -DeflectedGoals, -GoalsfromSetPlay, -FastBreakGoals) %>% 
+  filter(!is.na(Date), !is.na(RestDays)) %>% 
+  mutate(StartTime = as.Date(Date, format='%m/%d/%y'),
+         Year = year(StartTime))
+
+#Define 'feature.names' string & remove target
+feature.names <- names(TeamPlay)[ - which(names(TeamPlay) == "Goals")]
+remove <- c("GoalsfromInsideBox", "GoalsfromOutsideBox", "GoalsOpenPlay", "Assists",
+            "RightFootGoals", "LeftFootGoals", "HeadedGoals", "PenaltyGoals", "Points", "OppositionPoints")
+feature.names <- setdiff(feature.names, remove)
+
+#Deal with character vars
+cat("Replacing text variables with numeric ids\n")
+for (f in feature.names) {
+  if (class(TeamPlay[[f]])=="character") {
+    levels <- unique(c(TeamPlay[[f]]))
+    TeamPlay[[f]] <- as.integer(factor(TeamPlay[[f]], levels=levels))
+  }
+}
+
+#Run XGBoost
+cat("Training a XGBoost classifier\n")
+xgb <- xgboost(data        = data.matrix(TeamPlay[,feature.names]),
+               label       = TeamPlay$Goals,
+               nrounds     = 50,
+               objective   = "reg:linear",
+               eval_metric = "rmse",
+               gamma = 1,
+               max.depth = 8,
+               eta = 0.3)
+
+#Feature Importance
+important <- xgb.importance(feature.names, model = xgb)
+kable(important, caption = "XGBoost Ranking of Variable Importance ")
+
+xgb.plot.importance(importance_matrix = important[1:25])
+#Intentional Assist, Goals related variables, multicollinearity
+```
+
+```{r}
+#see if Goal is normal
+hist(TeamPlay$Goals)
+
+qqnorm(TeamPlay$Goals); qqline(TeamPlay$Goals)
+
+hist(log(TeamPlay$Goals))
+```
+
+```{r}
+#Run linear regression on xgboost results - best 25 variables
+attach(TeamPlay)
+linear.formula.goals <- Goals~
+  IntentionalAssist+
+  BigChancesOnTarget+
+  RightFootShotsOnTarget+
+  AttemptsfromPenaltiesontarget+
+  ShotsOnTargetincgoals+
+  FoulWonPenalty+
+  PassForward+
+  ThrowInstoOwnPlayer+
+  ShotsOnfromInsideBox+
+  UnsuccessfulCrossesCorners+
+  Pressure+
+  PointsToDate+
+  SuccessfulLay.Offs+
+  MilesFromHome+
+  CrossesnotClaimed+
+  Humidity+
+  OtherClearances+
+  UnsuccessfulShortPasses+
+  SecondAssists+
+  UnsuccessfulCornersintoBox+
+  AttackingGroundDuelsLost+
+  DefensiveAerialDuelsLost+
+  WindDir+
+  UnsuccessfulLongBalls+
+  RightFootShotsOffTarget
+
+linear.goals <- lm(linear.formula.goals, data = TeamPlay)
+summary(linear.goals)
+```
+
+```{r}
+#Goals as response variable, taking out play metrics
+NoPlay <- read_csv("C:/Users/linds/OneDrive/Fall 2017/American Research/American Research/NoPlayMetricsDataset.v.3.18.csv")
+
+#Get rid of ID variables
+TeamPlayGoals <- NoPlay %>% 
+  dplyr::select(-OppositionPoints, -PointsToDate, -TeamZipcode, -OppositionZipcode, -VenueZipcode, -StadiumID, -TeamGameNumber, -TeamZipcode, -Zipcode, -RestDays, -Points) %>%
+  filter(!is.na(Date)) %>% 
+  mutate(StartTime = as.Date(Date, format='%m/%d/%y'),
+         Year = year(StartTime))
+
+#Define 'feature.names' string & remove target
+feature.namesGoals <- names(TeamPlayGoals)[ - which(names(TeamPlayGoals) == "Goals")]
+
+#Deal with character vars
+cat("Replacing text variables with numeric ids\n")
+for (f in feature.namesGoals) {
+  if (class(TeamPlayGoals[[f]])=="character") {
+    levels <- unique(c(TeamPlayGoals[[f]]))
+    TeamPlayGoals[[f]] <- as.integer(factor(TeamPlayGoals[[f]], levels=levels))
+  }
+}
+
+#Run XGBoost
+cat("Training a XGBoost classifier\n")
+xgb <- xgboost(data        = data.matrix(TeamPlayGoals[,feature.namesGoals]),
+               label       = TeamPlayGoals$Goals,
+               nrounds     = 50,
+               objective   = "reg:linear",
+               eval_metric = "rmse",
+               gamma = 1,
+               max.depth = 8,
+               eta = 0.3)
+
+#Feature Importance
+important <- xgb.importance(feature.namesGoals, model = xgb)
+kable(important, caption = "XGBoost Ranking of Variable Importance ")
+
+xgb.plot.importance(importance_matrix = important[1:25])
+```
+
+```{r}
+#Run linear regression based on xgboost results - best 25 variables
+attach(TeamPlayGoals)
+linear.regression.formula.goals <- Goals~MilesFromHome+
+MilesTraveledToDate+
+Humidity+
+DewPoint+
+TempAtStart+
+Pressure+
+TempPrevDay+
+WindDir+
+WindSpeed+
+DaysSinceLastMatch+
+Capacity+
+StartTime+
+Month+
+GustSpeed+
+Conditions+
+FieldMaterial+
+PrecipPrevDay.T+
+EventsPrevDay+
+FieldLength+
+Cost+
+YearBuilt+
+FieldWidth+
+Altitude+
+StadiumOrientation+
+MatchTimeZone+
+Visibility+
+Clear+
+Timezone+
+PartlyCloudy+
+Precip+
+PrevDayRain+
+Covered+
+ScatteredClouds+
+Overcast+
+Material+
+TimeZoneChanges+
+TimeDiff+
+PrevDayFog+
+PrevDayThunderstorm+
+LightRainShowers
+
+linear.regression.goals <- lm(linear.regression.formula.goals, data = TeamPlayGoals)
+summary(linear.regression.goals)
+```
+
+```{r}
+TeamPlay3.18 <- read_csv("C:/Users/linds/OneDrive/Fall 2017/American Research/American Research/TeamPlayDataset.v.3.18.csv")
+#GoalsDifferential as response variable
+#Get rid of ID variables and Date
+TeamPlayGD <- TeamPlay3.18 %>% 
+  dplyr::select(-OppositionPoints, -PointsToDate, -Date, -TeamZipcode, -OppositionZipcode, -VenueZipcode, -StadiumID, -TeamGameNumber, -TeamZipcode, -Zipcode, -RestDays, -Points, -Goals, -OppGoals, -`Match-TeamID`, -FirstGoal, -WinningGoal, -GoalsOpenPlay, -GoalsfromCorners, -GoalsfromThrows, -GoalsfromDirectFreeKick, -GoalsfromdivingHeaders, -GoalsConceded, -Goalsasasubstitute, -GoalsConcededInsideBox, -GoalsConcededOutsideBox, -MatchID, -MatchIDcopy, -Oppositionid, -Opposition, -GoalAssistSetPiece, -GoalsfromdivingHeaders, -Goals.Volleys, -CleanSheets, -BigChancesScored, -TeamCleansheet, -Goalsfrompenalties, -Team) 
+
+#Define 'feature.names' string & remove target
+feature.namesGD <- names(TeamPlayGD)[ - which(names(TeamPlayGD) == "GoalDifferential")]
+#Remove variables related to Goal - NOTE: Need to pull more out
+remove <- c("GoalsfromInsideBox", "GoalsfromOutsideBox", "GoalsOpenPlay", "Assists",
+            "RightFootGoals", "LeftFootGoals", "HeadedGoals", "PenaltyGoals")
+feature.namesGD <- setdiff(feature.namesGD, remove)
+
+#Deal with character vars
+cat("Replacing text variables with numeric ids\n")
+for (f in feature.namesGD) {
+  if (class(TeamPlayGD[[f]])=="character") {
+    levels <- unique(c(TeamPlayGD[[f]]))
+    TeamPlayGD[[f]] <- as.integer(factor(TeamPlayGD[[f]], levels=levels))
+  }
+}
+
+#Run XGBoost
+cat("Training a XGBoost classifier\n")
+xgbGD <- xgboost(data        = data.matrix(TeamPlayGD[,feature.namesGD]),
+               label       = TeamPlayGD$GoalDifferential,
+               nrounds     = 50,
+               objective   = "reg:linear",
+               eval_metric = "rmse",
+               gamma = 1,
+               max.depth = 8,
+               eta = 0.3)
+
+#Feature Importance
+importantGD <- xgb.importance(feature.namesGD, model = xgbGD)
+kable(importantGD, caption = "XGBoost Ranking of Variable Importance")
+
+xgb.plot.importance(importance_matrix = importantGD[1:25])
+#pos/neg gain effects?
+```
+
+```{r}
+#Check if GoalDifferential is normal
+hist(TeamPlayGD$GoalDifferential)
+qqnorm(TeamPlayGD$GoalDifferential);qqline(TeamPlayGD$GoalDifferential)
+```
+
+```{r}
+#linear regression, GoalDifferential as response variable
+attach(TeamPlayGD)
+linear.regression.formula.gd <- GoalDifferential~
+IntentionalAssist+
+ShotsOnConcededInsideBox+
+ShotsOnConceded+
+BigChancesFaced+
+SavesMadefromInsideBox+
+BigChancesOnTarget+
+SavesMade+
+RightFootShotsOnTarget+
+UnsuccessfulCrossesCornersintheair+
+ShotsOnTargetincgoals+
+Unsuccessfulcrossesintheair+
+UnsuccessfulLongBalls+
+ClearancesOfftheLine+
+SavesHands+
+TotalClearances+
+HeadedClearances+
+ShotsOnfromInsideBox+
+Touches+
+MilesFromHome+
+Interceptions+
+UnsuccessfulPassesFinalthird+
+AttackingGroundDuelsLost+
+ShotsOnTargetOutsideBox+
+PassLeft+
+FoulsWonnotindangerarea
+
+linear.regression.gd <- lm(linear.regression.formula.gd, data = TeamPlayGD)  
+summary(linear.regression.gd)
+```
+
+```{r}
+#GoalsDifferential as response variable, taking out play metrics
+NoPlayGD <- read_csv("C:/Users/linds/OneDrive/Fall 2017/American Research/American Research/NoPlayMetricsDataset.v.3.18.csv")
+
+#Get rid of ID variables & reformat date
+TeamPlayGDNoPlay <- NoPlayGD %>% 
+  dplyr::select(-OppositionPoints, -PointsToDate, -Date, -TeamZipcode, -OppositionZipcode, -VenueZipcode, -StadiumID, -TeamGameNumber, -TeamZipcode, -Zipcode, -RestDays, -Points, -Goals) 
+
+#Define 'feature.names' string & remove target
+feature.namesGDNoPlay <- names(TeamPlayGDNoPlay)[ - which(names(TeamPlayGDNoPlay) == "GoalDifferential")]
+
+#Deal with character vars
+cat("Replacing text variables with numeric ids\n")
+for (f in feature.namesGDNoPlay) {
+  if (class(TeamPlayGDNoPlay[[f]])=="character") {
+    levels <- unique(c(TeamPlayGDNoPlay[[f]]))
+    TeamPlayGDNoPlay[[f]] <- as.integer(factor(TeamPlayGDNoPlay[[f]], levels=levels))
+  }
+}
+
+#Run XGBoost
+cat("Training a XGBoost classifier\n")
+xgb <- xgboost(data        = data.matrix(TeamPlayGDNoPlay[,feature.namesGDNoPlay]),
+               label       = TeamPlayGDNoPlay$GoalDifferential,
+               nrounds     = 50,
+               objective   = "reg:linear",
+               eval_metric = "rmse",
+               gamma = 1,
+               max.depth = 8,
+               eta = 0.3)
+
+#Feature Importance
+important <- xgb.importance(feature.namesGDNoPlay, model = xgb)
+kable(important, caption = "XGBoost Ranking of Variable Importance ")
+
+xgb.plot.importance(importance_matrix = important[1:25])
+#pos/neg gain effects?
+```
+
+```{r}
+attach(TeamPlayGDNoPlay)
+linear.regression.formula.gdnoplay <- GoalDifferential~
+  MilesTraveledToDate+
+  MilesFromHome+
+  Humidity+
+  Pressure+
+  TempPrevDay+
+  DewPoint+
+  WindSpeed+
+  DaysSinceLastMatch+
+  TempAtStart+
+  WindDir+
+  StartTime+
+  Month+
+  PrecipPrevDay.T+
+  Conditions+
+  EventsPrevDay+
+  Capacity+
+  TimeZoneChanges+
+  FieldMaterial+
+  StadiumOrientation+
+  Cost+
+  Altitude+
+  GustSpeed+
+  YearBuilt+
+  Overcast+
+  Clear
+
+linear.regression.gdnoplay <- lm(linear.regression.formula.gdnoplay, data = TeamPlayGDNoPlay)
+summary(linear.regression.gdnoplay)
+```
